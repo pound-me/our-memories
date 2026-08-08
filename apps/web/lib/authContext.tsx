@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
   type ReactNode,
@@ -17,6 +18,7 @@ import {
   writeSession,
   type StoredSession,
 } from "@/lib/authStore";
+import { restoreSessionFromCookie } from "@/lib/apiClient";
 
 type AuthContextValue = {
   session: StoredSession | null;
@@ -70,6 +72,11 @@ function subscribeAuthSnapshot(onStoreChange: () => void) {
 export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const snapshot = useSyncExternalStore(subscribeAuthSnapshot, readAuthSnapshot, () => serverSnapshot);
   const { session, legacyAdminMode } = useMemo(() => parseAuthSnapshot(snapshot), [snapshot]);
+
+  useEffect(() => {
+    if (session) return;
+    void restoreSessionFromCookie();
+  }, [session]);
 
   const login = useCallback((nextSession: StoredSession) => {
     writeSession(nextSession);

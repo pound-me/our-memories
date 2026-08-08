@@ -70,6 +70,59 @@ func TestLoginSetsHttpOnlyAuthCookies(t *testing.T) {
 	}
 	assertAuthCookie(t, response.Result().Cookies(), middleware.AccessTokenCookieName)
 	assertAuthCookie(t, response.Result().Cookies(), middleware.RefreshTokenCookieName)
+
+	var payload struct {
+		Membership struct {
+			Role string `json:"role"`
+		} `json:"membership"`
+		Space struct {
+			Slug string `json:"slug"`
+		} `json:"space"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Membership.Role != "owner" {
+		t.Fatalf("expected owner membership, got %q", payload.Membership.Role)
+	}
+	if payload.Space.Slug != "space-one" {
+		t.Fatalf("expected space slug fallback, got %q", payload.Space.Slug)
+	}
+}
+
+func TestGetMeRestoresBrowserSessionMetadata(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	setupAuthCookieTestDB(t)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	response := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(response)
+	c.Request = request
+	c.Set("userID", "user-1")
+	c.Set("spaceID", "space-1")
+
+	GetMe(c)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected me to pass, got %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		User struct {
+			Username string `json:"username"`
+		} `json:"user"`
+		Membership struct {
+			Role string `json:"role"`
+		} `json:"membership"`
+		Space struct {
+			Slug string `json:"slug"`
+		} `json:"space"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.User.Username != "me" || payload.Membership.Role != "owner" || payload.Space.Slug != "space-one" {
+		t.Fatalf("unexpected session metadata: %#v", payload)
+	}
 }
 
 func TestRefreshUsesRefreshCookie(t *testing.T) {

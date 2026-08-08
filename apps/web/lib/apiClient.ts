@@ -175,6 +175,49 @@ export async function login(spaceCode: string, password: string, userId = "me") 
   return true;
 }
 
+let restoreSessionPromise: Promise<ReturnType<typeof readSession>> | null = null;
+
+export async function restoreSessionFromCookie() {
+  const current = readSession();
+  if (current) return current;
+  if (restoreSessionPromise) return restoreSessionPromise;
+
+  restoreSessionPromise = (async () => {
+    const requestMe = () => fetch(`${apiBaseUrl()}/api/v1/me`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    }).catch(() => null);
+
+    let accessToken: string | undefined;
+    let response = await requestMe();
+    if (response?.status === 401) {
+      const refreshResponse = await fetch(`${apiBaseUrl()}/api/v1/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }).catch(() => null);
+      if (!refreshResponse?.ok) return null;
+
+      const refreshPayload = (await refreshResponse.json().catch(() => null)) as { accessToken?: string } | null;
+      accessToken = refreshPayload?.accessToken;
+      response = await requestMe();
+    }
+    if (!response?.ok) return null;
+
+    const account = (await response.json().catch(() => null)) as Omit<NonNullable<ReturnType<typeof readSession>>, "accessToken" | "refreshToken"> | null;
+    if (!account?.user || !account.space) return null;
+
+    const restored = { ...account, accessToken };
+    writeSession(restored);
+    return restored;
+  })().finally(() => {
+    restoreSessionPromise = null;
+  });
+
+  return restoreSessionPromise;
+}
+
 export type LoginIdentity = {
   username: string;
   displayName: string;

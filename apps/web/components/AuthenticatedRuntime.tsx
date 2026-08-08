@@ -1,8 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
+import { syncAppSettings } from "@/data/appSettings";
 
 const NotificationBell = dynamic(() =>
   import("@/components/NotificationBell").then((mod) => mod.NotificationBell)
@@ -20,6 +22,12 @@ const RealtimeBridge = dynamic(() =>
 export function AuthenticatedRuntime() {
   const { session } = useAuth();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!session) return;
+    void syncAppSettings({ force: true }).catch(() => {});
+  }, [session]);
+
   if (!session) return null;
   return (
     <>

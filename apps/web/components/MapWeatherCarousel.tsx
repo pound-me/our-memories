@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { cities } from "@/data/cities";
 import {
   appSettingsUpdatedEvent,
-  defaultSelfCityId,
   normalizeMemberProfiles,
   readAppSettings,
 } from "@/data/appSettings";
@@ -13,19 +12,17 @@ import { fetchCitiesWeather, weatherFallbackTemp, type WeatherInfo } from "@/lib
 import { WeatherPixelIcon } from "@/components/WeatherPixelIcon";
 
 const cityById = new Map(cities.map((city) => [city.id, city]));
-const defaultWeatherCityIds = [defaultSelfCityId, "city-451100"];
-
 function readCarouselCityIds() {
   const profiles = normalizeMemberProfiles(readAppSettings().memberProfiles);
   const ids = Object.values(profiles)
     .map((profile) => profile.cityId)
     .filter((cityId): cityId is string => Boolean(cityId && cityById.has(cityId)));
 
-  return Array.from(new Set(ids.length > 0 ? ids : defaultWeatherCityIds)).slice(0, 4);
+  return Array.from(new Set(ids)).slice(0, 4);
 }
 
 export default function MapWeatherCarousel() {
-  const [cityIds, setCityIds] = useState<string[]>(defaultWeatherCityIds);
+  const [cityIds, setCityIds] = useState<string[]>([]);
   const [weatherByCityId, setWeatherByCityId] = useState<Record<string, WeatherInfo>>({});
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -72,8 +69,8 @@ export default function MapWeatherCarousel() {
   }, [cityIds.length]);
 
   const safeActiveIndex = cityIds.length > 0 ? activeIndex % cityIds.length : 0;
-  const activeCityId = cityIds[safeActiveIndex] ?? cityIds[0] ?? defaultSelfCityId;
-  const city = cityById.get(activeCityId) ?? cityById.get(defaultSelfCityId);
+  const activeCityId = cityIds[safeActiveIndex] ?? cityIds[0] ?? "";
+  const city = cityById.get(activeCityId);
   const weather = weatherByCityId[activeCityId];
   const label = useMemo(() => {
     if (!city) return "天气读取中";

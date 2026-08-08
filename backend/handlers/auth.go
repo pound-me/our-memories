@@ -52,7 +52,9 @@ func Login(c *gin.Context) {
 			"id":        result.Space.ID,
 			"name":      result.Space.Name,
 			"spaceCode": result.Space.SpaceCode,
+			"slug":      result.Space.SpaceCode,
 		},
+		"membership": gin.H{"role": result.User.Role},
 		"users": users,
 	})
 }
@@ -156,7 +158,9 @@ func GetMe(c *gin.Context) {
 			"id":        space.ID,
 			"name":      space.Name,
 			"spaceCode": space.SpaceCode,
+			"slug":      space.SpaceCode,
 		},
+		"membership": gin.H{"role": user.Role},
 	})
 }
 

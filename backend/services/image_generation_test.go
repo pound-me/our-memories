@@ -3,11 +3,19 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestGenerateAvatarSpriteReportsUnconfiguredNode(t *testing.T) {
+	_, err := NewImageGenerator(ImageGenerationSettings{}).GenerateAvatarSprite(context.Background(), AvatarSpriteSpec{})
+	if !errors.Is(err, ErrImageGenerationNotConfigured) {
+		t.Fatalf("expected ErrImageGenerationNotConfigured, got %v", err)
+	}
+}
 
 func TestAvatarSpritePromptIncludesGhibliLocationAndGuardrails(t *testing.T) {
 	prompt := avatarSpritePrompt(AvatarSpriteSpec{

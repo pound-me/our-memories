@@ -21,7 +21,6 @@ import { useToast } from "@/components/ui/toast";
 import {
   appSettingsStorageKey,
   appSettingsUpdatedEvent,
-  defaultSelfCityId,
   normalizeAppSettings,
   normalizeMemberProfiles,
   readAppSettings,
@@ -32,7 +31,7 @@ import {
 } from "@/data/appSettings";
 import { cities } from "@/data/cities";
 import { provinces } from "@/data/provinces";
-import { apiJson } from "@/lib/apiClient";
+import { ApiError, apiJson } from "@/lib/apiClient";
 import { authSessionUpdatedEvent, readSession, sessionKey, type StoredSession } from "@/lib/authStore";
 
 type BackupPayload = {
@@ -191,7 +190,6 @@ export default function SettingsPage() {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [profile, setProfile] = useState<PartnerProfile>({
     gender: "neutral",
-    cityId: defaultSelfCityId,
   });
   const [saving, setSaving] = useState(false);
   const [avatarPrompt, setAvatarPrompt] = useState("");
@@ -212,7 +210,6 @@ export default function SettingsPage() {
       setSession(nextSession);
       setProfile({
         gender: "neutral",
-        cityId: defaultSelfCityId,
         ...profiles[memberKey],
         name: sessionDisplayName(nextSession),
       });
@@ -306,8 +303,15 @@ export default function SettingsPage() {
       setAvatarReference("");
       setAvatarReferenceName("");
       toast("地图角色已生成并上传", "success");
-    } catch {
-      toast("地图角色生成失败，请检查管理端生图节点", "error");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503) {
+        const message = error.message.toLowerCase().includes("not configured")
+          ? "尚未配置生图 API。请先在管理端添加 OpenAI 兼容图片节点。"
+          : "生图 API 暂时不可用，请检查地址、密钥、模型和网络连接。";
+        toast(message, "error");
+      } else {
+        toast("地图角色生成失败，请稍后再试", "error");
+      }
     } finally {
       setGeneratingAvatar(false);
     }
@@ -356,7 +360,6 @@ export default function SettingsPage() {
       setSettings(restoredSettings);
       setProfile({
         gender: "neutral",
-        cityId: defaultSelfCityId,
         ...restoredProfiles[memberKey],
         name: displayName,
       });

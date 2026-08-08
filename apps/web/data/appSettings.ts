@@ -147,7 +147,7 @@ export const normalizeMemberProfiles = (value: unknown): Record<string, PartnerP
       .map(([key, profile]) => {
         const memberKey = cleanString(key, 120);
         if (!memberKey) return null;
-        return [memberKey, normalizePartnerProfile(profile, { gender: "neutral", cityId: defaultSelfCityId })] as const;
+        return [memberKey, normalizePartnerProfile(profile, { gender: "neutral" })] as const;
       })
       .filter(Boolean) as Array<readonly [string, PartnerProfile]>,
   );
@@ -245,11 +245,11 @@ let syncSettingsPromise: Promise<AppSettings> | null = null;
 let lastSyncAt = 0;
 const settingsSyncDedupeMs = 30_000;
 
-export const syncAppSettings = async () => {
+export const syncAppSettings = async ({ force = false }: { force?: boolean } = {}) => {
   if (!readSession()) return readAppSettings();
   const now = Date.now();
   if (syncSettingsPromise) return syncSettingsPromise;
-  if (now - lastSyncAt < settingsSyncDedupeMs) return readAppSettings();
+  if (!force && now - lastSyncAt < settingsSyncDedupeMs) return readAppSettings();
 
   syncSettingsPromise = apiJson<unknown>("/api/v1/settings")
     .then((data) => {

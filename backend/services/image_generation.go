@@ -119,6 +119,8 @@ type ImageGenerator struct {
 	client   *http.Client
 }
 
+var ErrImageGenerationNotConfigured = errors.New("image generation node not configured")
+
 func (s *SettingService) ImageGenerationSettings() (ImageGenerationSettings, error) {
 	settings := ImageGenerationSettings{Nodes: []ImageGenerationNode{}}
 	if err := s.repo.ReadJSON(imageGenerationGlobalSpaceID, imageGenerationSettingsKey, &settings); err != nil {
@@ -166,7 +168,7 @@ func NewImageGenerator(settings ImageGenerationSettings) *ImageGenerator {
 func (g *ImageGenerator) GenerateAvatarSprite(ctx context.Context, spec AvatarSpriteSpec) (ImageGenerationResult, error) {
 	nodes := enabledImageGenerationNodes(g.settings.Nodes)
 	if len(nodes) == 0 {
-		return ImageGenerationResult{}, errors.New("image generation node not configured")
+		return ImageGenerationResult{}, ErrImageGenerationNotConfigured
 	}
 
 	prompt := avatarSpritePrompt(AvatarSpriteSpec{

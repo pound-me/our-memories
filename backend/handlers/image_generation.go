@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -100,7 +101,11 @@ func GenerateAvatarSprite(c *gin.Context) {
 	})
 	if err != nil {
 		log.Printf("avatar sprite generation failed: %v", err)
-		utils.Error(c, 503, "Avatar generation failed")
+		if errors.Is(err, services.ErrImageGenerationNotConfigured) {
+			utils.Error(c, 503, "Image generation is not configured")
+			return
+		}
+		utils.Error(c, 503, "Image generation service is unavailable")
 		return
 	}
 

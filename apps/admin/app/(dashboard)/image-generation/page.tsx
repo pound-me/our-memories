@@ -141,6 +141,12 @@ export default function ImageGenerationPage() {
         </div>
       )}
 
+      <div className="mb-5 rounded-lg border border-[var(--border)] bg-[var(--muted)] px-4 py-3 text-sm leading-6 text-[var(--muted-foreground)]">
+        Base URL 请填写到 API 版本层级，例如 <code>https://api.example.com/v1</code>。如果图片 API
+        运行在 Docker 宿主机端口，请使用 <code>http://host.docker.internal:端口/v1</code>，并确保容器启动时已加入
+        <code>--add-host=host.docker.internal:host-gateway</code>。
+      </div>
+
       <Panel
         title="角色提示词模板"
         description="用占位符拼接设置页资料和用户提示词，统一控制人物比例、地方特色和画风质量。"

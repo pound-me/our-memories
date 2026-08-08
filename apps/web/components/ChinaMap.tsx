@@ -28,12 +28,10 @@ import { summaryToMemoryStore, useMemorySummary } from "@/lib/memorySummaryStore
 import { Modal } from "@/components/ui/modal";
 import {
   appSettingsUpdatedEvent,
-  defaultSelfCityId,
   normalizeMemberProfiles,
   readAppSettings,
   type PartnerProfile,
 } from "@/data/appSettings";
-import { readSession } from "@/lib/authStore";
 import { fetchCitiesWeather, weatherFallbackTemp, type WeatherInfo } from "@/lib/weather";
 import { useApi } from "@/lib/swr";
 import { WeatherPixelIcon } from "@/components/WeatherPixelIcon";
@@ -829,21 +827,7 @@ export default function ChinaMap({ width = 1100, height = 860, className }: Chin
     const syncSettings = () => {
       const settings = readAppSettings();
       const profiles = normalizeMemberProfiles(settings.memberProfiles);
-      const session = readSession();
-      const memberKey = session?.user?.id || session?.user?.username || "local-user";
-
-      if (Object.keys(profiles).length > 0) {
-        setMemberProfiles(profiles);
-        return;
-      }
-
-      setMemberProfiles({
-        [memberKey]: {
-          name: session?.user?.displayName || session?.user?.username || "我",
-          gender: "neutral",
-          cityId: defaultSelfCityId,
-        },
-      });
+      setMemberProfiles(profiles);
     };
 
     syncSettings();

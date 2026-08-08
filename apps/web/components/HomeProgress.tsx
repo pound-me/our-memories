@@ -14,10 +14,7 @@ import { TOTAL_PROVINCES } from "@/data/provinces";
 import { memoryTime } from "@/data/memories";
 import {
   appSettingsUpdatedEvent,
-  defaultAnniversaryDate,
-  defaultAnniversaryLabel,
   defaultCoupleLogo,
-  defaultWeatherCityIds,
   normalizeAnniversaryDate,
   readAppSettings,
   syncAppSettings,
@@ -38,16 +35,25 @@ import {
 
 // Reads the user's local settings and stays in sync when they change them
 // from the settings page (same tab via custom event, other tabs via storage).
-function useAppSettings(): AppSettings {
+function useAppSettings(): { settings: AppSettings; ready: boolean } {
   const [settings, setSettings] = useState<AppSettings>({});
-  const ready = useDeferredReady(900);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const sync = () => setSettings(readAppSettings());
+    const sync = () => {
+      setSettings(readAppSettings());
+      setReady(true);
+    };
     const syncRemote = () => {
-      void syncAppSettings().then(setSettings).catch(() => {});
+      void syncAppSettings()
+        .then((nextSettings) => {
+          setSettings(nextSettings);
+          setReady(true);
+        })
+        .catch(() => setReady(true));
     };
     sync();
+    syncRemote();
     window.addEventListener(appSettingsUpdatedEvent, sync);
     window.addEventListener("storage", sync);
     window.addEventListener(pullRefreshEvent, syncRemote);
@@ -59,12 +65,7 @@ function useAppSettings(): AppSettings {
     };
   }, []);
 
-  useEffect(() => {
-    if (!ready) return;
-    void syncAppSettings().then(setSettings).catch(() => {});
-  }, [ready]);
-
-  return settings;
+  return { settings, ready };
 }
 
 const daysTogether = (date?: string) => {
@@ -100,12 +101,12 @@ const formatWeekday = (value: Date) =>
   }).format(value);
 
 function useTogetherDays() {
-  const settings = useAppSettings();
-  const startDate = normalizeAnniversaryDate(settings.anniversaryDate) ?? defaultAnniversaryDate;
-  const label = settings.anniversaryLabel ?? defaultAnniversaryLabel;
-  const days = daysTogether(startDate) ?? 0;
+  const { settings, ready } = useAppSettings();
+  const startDate = normalizeAnniversaryDate(settings.anniversaryDate);
+  const label = settings.anniversaryLabel ?? (ready ? "尚未设置" : "正在读取");
+  const days = daysTogether(startDate);
 
-  return { days, label, startDate };
+  return { days, label, startDate, ready };
 }
 
 function WeatherFrame(props: SVGProps<SVGSVGElement>) {
@@ -122,13 +123,13 @@ function WeatherCard() {
   const [weather, setWeather] = useState<Record<string, WeatherInfo>>({});
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const settings = useAppSettings();
+  const { settings, ready: settingsReady } = useAppSettings();
   const isMobile = useIsMobile();
   const ready = useDeferredReady(1500);
 
   const locationCities = useMemo(
     () =>
-      (settings.weatherCityIds ?? defaultWeatherCityIds)
+      (settings.weatherCityIds ?? [])
         .map((cityId) => {
           const city = cities.find((item) => item.id === cityId);
           return city ? { cityId, fallbackTemp: weatherFallbackTemp, city } : null;
@@ -138,7 +139,7 @@ function WeatherCard() {
   );
 
   useEffect(() => {
-    if (!ready || isMobile) return;
+    if (!ready || !settingsReady || isMobile || locationCities.length === 0) return;
     let cancelled = false;
 
     async function loadWeather() {
@@ -161,7 +162,7 @@ function WeatherCard() {
       window.clearInterval(interval);
       window.removeEventListener(pullRefreshEvent, loadWeather);
     };
-  }, [isMobile, locationCities, ready]);
+  }, [isMobile, locationCities, ready, settingsReady]);
 
   if (isMobile) return null;
 
@@ -178,7 +179,11 @@ function WeatherCard() {
       </div>
       <WeatherFrame className="mb-2 h-2 w-full" />
       <div className="grid grid-cols-3 gap-2">
-        {locationCities.map(({ city, fallbackTemp }) => {
+        {locationCities.length === 0 ? (
+          <div className="col-span-3 rounded-[8px] border border-dim/56 bg-white/36 px-3 py-6 text-center text-xs font-semibold text-ink/45">
+            {settingsReady ? "尚未设置天气地点" : "正在读取地点"}
+          </div>
+        ) : locationCities.map(({ city, fallbackTemp }) => {
           const item = weather[city.id] ?? {
             cityId: city.id,
             temp: fallbackTemp,
@@ -241,7 +246,7 @@ function DateTimeCard() {
 }
 
 function TogetherDaysCard() {
-  const { days, label, startDate } = useTogetherDays();
+  const { days, label, startDate, ready } = useTogetherDays();
 
   return (
     <div className="mt-3 rounded-[8px] border border-dim/70 bg-cream/62 px-4 py-3 text-ink shadow-[0_10px_24px_rgba(90,102,112,0.05)]">
@@ -251,17 +256,19 @@ function TogetherDaysCard() {
           <p className="mt-1 text-sm font-semibold text-ink">{label}</p>
         </div>
         <div className="flex items-end gap-1.5">
-          <span className="text-2xl font-semibold leading-none text-bloom">{days}</span>
+          <span className="text-2xl font-semibold leading-none text-bloom">{days ?? "—"}</span>
           <span className="pb-0.5 text-sm font-semibold text-ink/56">天</span>
         </div>
       </div>
-      <p className="mt-1 truncate text-xs text-ink/45">从 {startDate} 开始</p>
+      <p className="mt-1 truncate text-xs text-ink/45">
+        {startDate ? `从 ${startDate} 开始` : ready ? "请在设置中填写纪念日" : "正在同步纪念日"}
+      </p>
     </div>
   );
 }
 
 export function TogetherDaysBadge({ compact = false }: Readonly<{ compact?: boolean }> = {}) {
-  const { days, label } = useTogetherDays();
+  const { days, label, ready } = useTogetherDays();
 
   return (
     <div
@@ -271,9 +278,13 @@ export function TogetherDaysBadge({ compact = false }: Readonly<{ compact?: bool
     >
       <CalendarDays className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} shrink-0 text-sky`} />
       <span className="min-w-0 truncate">
-        {compact ? "在一起" : label}
-        <strong className="mx-1 font-semibold text-bloom">{days}</strong>
-        天
+        {ready && days !== null ? (
+          <>
+            {compact ? "在一起" : label}
+            <strong className="mx-1 font-semibold text-bloom">{days}</strong>
+            天
+          </>
+        ) : ready ? "纪念日尚未设置" : "纪念日读取中"}
       </span>
     </div>
   );
@@ -353,7 +364,7 @@ function AlbumProgressCard() {
 
 function CoupleLogo() {
   const [activeHead, setActiveHead] = useState<"left" | "right" | null>(null);
-  const settings = useAppSettings();
+  const { settings } = useAppSettings();
   const logoSrc = settings.coupleLogo ?? defaultCoupleLogo;
 
   const popHead = (side: "left" | "right") => {
@@ -436,7 +447,7 @@ function useMapRitualStats() {
 export function MobileRitualStats() {
   const stats = useMapRitualStats();
   const badges = [
-    { label: "在一起", value: stats.days, unit: "天", accent: "text-bloom" },
+    { label: "在一起", value: stats.days ?? "—", unit: "天", accent: "text-bloom" },
     { label: "省份", value: stats.provinceCount, unit: "枚", accent: "text-sky" },
     { label: "城市", value: stats.cityCount, unit: "座", accent: "text-ink" },
     { label: "回忆", value: stats.memoryCount, unit: "条", accent: "text-bloom" },
