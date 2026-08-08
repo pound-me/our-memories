@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowRight, Delete, Heart, LockKeyhole } from "lucide-react";
-import { apiBaseUrl, login } from "@/lib/apiClient";
+import { login, type LoginIdentity, verifySpaceAccess } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 
 const passcodeLength = 4;
@@ -37,6 +37,10 @@ export default function MobileEntryExperience() {
   const [spaceCode] = useState("our-space-2026");
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [loginIdentities, setLoginIdentities] = useState<LoginIdentity[]>([
+    { username: "me", displayName: "我" },
+    { username: "ta", displayName: "TA" },
+  ]);
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"idle" | "checking" | "wrong" | "open">("idle");
 
@@ -49,13 +53,9 @@ export default function MobileEntryExperience() {
 
     if (step === 1) {
       setStatus("checking");
-      const res = await fetch(`${apiBaseUrl()}/api/v1/auth/login`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spaceCode, password: nextCode, userId: "me" }),
-      }).catch(() => null);
-      if (res?.ok) {
+      const identities = await verifySpaceAccess(spaceCode, nextCode).catch(() => null);
+      if (identities) {
+        setLoginIdentities(identities);
         setStep(2);
         setStatus("idle");
         return;
@@ -152,19 +152,19 @@ export default function MobileEntryExperience() {
                 {step === 1 ? (
                   <div className="col-span-2 text-center text-xs font-medium text-ink-soft">输入纪念日密码</div>
                 ) : (
-                  (["me", "ta"] as const).map((userId) => (
+                  loginIdentities.map((identity) => (
                     <button
-                      key={userId}
+                      key={identity.username}
                       className={`rounded-[7px] border px-3 py-2 text-xs font-semibold transition ${
-                        selectedUserId === userId
+                        selectedUserId === identity.username
                           ? "border-bloom bg-sakura/70 text-rose"
                           : "border-warm-border bg-white/42 text-clay"
                       }`}
                       type="button"
-                      onClick={() => setSelectedUserId(userId)}
+                      onClick={() => setSelectedUserId(identity.username)}
                       disabled={status === "checking" || status === "open"}
                     >
-                      {userId === "me" ? "刘永伦" : "郭文盈"}
+                      {identity.displayName}
                     </button>
                   ))
                 )}

@@ -1,19 +1,27 @@
 services:
   api:
-    image: ${OUR_MEMORIES_IMAGE:-ghcr.io/qq570850096/our-memories:latest}
+    image: ${OUR_MEMORIES_IMAGE:-registry.cn-hangzhou.aliyuncs.com/work_spac/our-memories:latest}
     pull_policy: always
     environment:
       PORT: 8080
+      TZ: ${TZ:-Asia/Shanghai}
+      GIN_MODE: ${GIN_MODE:-release}
       DATABASE_PATH: /app/data/ourMemories.db
       PUBLIC_DIR: /app/public
+      LOCAL_IMAGE_DIR: /app/data/images
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a long random value before starting}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3002,capacitor://localhost,http://localhost,https://localhost}
       DEFAULT_SPACE_CODE: ${DEFAULT_SPACE_CODE:-our-space-2026}
+      DEFAULT_SPACE_NAME: ${DEFAULT_SPACE_NAME:-我们的回忆}
+      DEFAULT_USER_ME_NAME: ${DEFAULT_USER_ME_NAME:-我}
+      DEFAULT_USER_TA_NAME: ${DEFAULT_USER_TA_NAME:-TA}
       DEFAULT_PASSWORD: ${DEFAULT_PASSWORD:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_DISPLAY_NAME: ${ADMIN_DISPLAY_NAME:-Admin User}
-      AUTO_SEED: ${AUTO_SEED:-false}
+      AUTO_SEED: ${AUTO_SEED:-true}
+      DEFAULT_ANNIVERSARY_DATE: ${DEFAULT_ANNIVERSARY_DATE:-2020-01-01}
+      DEFAULT_ANNIVERSARY_LABEL: ${DEFAULT_ANNIVERSARY_LABEL:-在一起}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
@@ -22,9 +30,9 @@ services:
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-}
       S3_OBJECT_ACL: ${S3_OBJECT_ACL:-}
     ports:
-      - "8080:8080"
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_PORT:-18080}:8080"
     volumes:
-      - api-data:/app/data
+      - "${DATA_DIR:-api-data}:/app/data"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]

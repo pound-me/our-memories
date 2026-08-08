@@ -432,6 +432,9 @@ func TestAccountServiceLoginPasswordAndAdminRules(t *testing.T) {
 	if login.AccessToken == "" || login.RefreshToken == "" || login.User.ID != "user-1" || login.Space.ID != "space-1" {
 		t.Fatalf("unexpected login result: %#v", login)
 	}
+	if len(login.Users) != 2 || login.Users[0].Username != "me" || login.Users[0].DisplayName != "Me" {
+		t.Fatalf("expected login identities from the database, got %#v", login.Users)
+	}
 
 	if err := service.UpdatePassword("space-1", "short"); !errors.Is(err, ErrInvalidPasswordLength) {
 		t.Fatalf("expected password length error, got %v", err)

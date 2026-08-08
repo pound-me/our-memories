@@ -2,6 +2,19 @@ package config
 
 import "testing"
 
+func TestLoadReadsDefaultProfileNames(t *testing.T) {
+	t.Setenv("JWT_SECRET", "0123456789abcdef0123456789abcdef")
+	t.Setenv("DEFAULT_SPACE_NAME", "Private Space")
+	t.Setenv("DEFAULT_USER_ME_NAME", "Person A")
+	t.Setenv("DEFAULT_USER_TA_NAME", "Person B")
+
+	Load()
+	loaded := Get()
+	if loaded.DefaultSpaceName != "Private Space" || loaded.DefaultUserMeName != "Person A" || loaded.DefaultUserTaName != "Person B" {
+		t.Fatalf("expected profile names from environment, got %#v", loaded)
+	}
+}
+
 func TestValidateAllowsExplicitSecureConfig(t *testing.T) {
 	cfg := secureTestConfig()
 	cfg.AutoSeed = true

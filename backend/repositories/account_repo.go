@@ -116,6 +116,23 @@ func (r *AccountRepository) UserByUsername(spaceID string, username string) (mod
 	return userModel(record), err
 }
 
+func (r *AccountRepository) UsersForSpace(spaceID string) ([]models.User, error) {
+	var records []UserRecord
+	if err := r.db.
+		Where("space_id = ?", spaceID).
+		Order("CASE username WHEN 'me' THEN 0 WHEN 'ta' THEN 1 ELSE 2 END, username").
+		Find(&records).
+		Error; err != nil {
+		return nil, err
+	}
+
+	users := make([]models.User, 0, len(records))
+	for _, record := range records {
+		users = append(users, userModel(record))
+	}
+	return users, nil
+}
+
 func (r *AccountRepository) UserByID(userID string) (models.User, error) {
 	var record UserRecord
 	err := r.db.

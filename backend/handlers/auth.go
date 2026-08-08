@@ -33,6 +33,13 @@ func Login(c *gin.Context) {
 	}
 
 	setAuthCookies(c, result.AccessToken, result.RefreshToken)
+	users := make([]gin.H, 0, len(result.Users))
+	for _, user := range result.Users {
+		users = append(users, gin.H{
+			"username":    user.Username,
+			"displayName": user.DisplayName,
+		})
+	}
 	utils.Success(c, gin.H{
 		"accessToken":  result.AccessToken,
 		"refreshToken": result.RefreshToken,
@@ -46,6 +53,7 @@ func Login(c *gin.Context) {
 			"name":      result.Space.Name,
 			"spaceCode": result.Space.SpaceCode,
 		},
+		"users": users,
 	})
 }
 

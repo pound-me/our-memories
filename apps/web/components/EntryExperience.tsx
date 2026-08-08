@@ -17,7 +17,7 @@ import {
   readLoginPhotoTexts,
   readLoginPhotos,
 } from "@/data/loginPhotoStore";
-import { apiBaseUrl, login } from "@/lib/apiClient";
+import { login, type LoginIdentity, verifySpaceAccess } from "@/lib/apiClient";
 import { useAuth } from "@/lib/authContext";
 
 const passcodeLength = 4;
@@ -165,6 +165,10 @@ export default function EntryExperience() {
   const [spaceCode] = useState<string>("our-space-2026");
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [loginIdentities, setLoginIdentities] = useState<LoginIdentity[]>([
+    { username: "me", displayName: "我" },
+    { username: "ta", displayName: "TA" },
+  ]);
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"idle" | "checking" | "wrong" | "open">("idle");
   const pointerX = useMotionValue(0);
@@ -223,14 +227,10 @@ export default function EntryExperience() {
 
     if (step === 1) {
       setStatus("checking");
-      const res = await fetch(`${apiBaseUrl()}/api/v1/auth/login`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spaceCode, password: nextCode, userId: "me" }),
-      }).catch(() => null);
+      const identities = await verifySpaceAccess(spaceCode, nextCode).catch(() => null);
 
-      if (res?.ok) {
+      if (identities) {
+        setLoginIdentities(identities);
         setStep(2);
         setStatus("idle");
       } else {
@@ -356,19 +356,19 @@ export default function EntryExperience() {
                   </div>
                 ) : (
                   <>
-                    {(["me", "ta"] as const).map((userId) => (
+                    {loginIdentities.map((identity) => (
                       <button
-                        key={userId}
+                        key={identity.username}
                         className={`rounded-[7px] border px-3 py-2 text-xs font-semibold transition ${
-                          selectedUserId === userId
+                          selectedUserId === identity.username
                             ? "border-bloom bg-sakura/70 text-rose"
                             : "border-warm-border bg-white/42 text-clay"
                         }`}
                         type="button"
-                        onClick={() => setSelectedUserId(userId)}
+                        onClick={() => setSelectedUserId(identity.username)}
                         disabled={status === "checking" || status === "open"}
                       >
-                        {userId === "me" ? "刘永伦" : "郭文盈"}
+                        {identity.displayName}
                       </button>
                     ))}
                   </>

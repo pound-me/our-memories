@@ -175,6 +175,26 @@ export async function login(spaceCode: string, password: string, userId = "me") 
   return true;
 }
 
+export type LoginIdentity = {
+  username: string;
+  displayName: string;
+};
+
+export async function verifySpaceAccess(spaceCode: string, password: string) {
+  const response = await apiFetch("/api/v1/auth/login", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ spaceCode, password, userId: "me" }),
+  });
+  if (!response.ok) return null;
+
+  const payload = (await response.json().catch(() => null)) as { users?: LoginIdentity[] } | null;
+  const users = payload?.users?.filter(
+    (user) => typeof user.username === "string" && typeof user.displayName === "string",
+  );
+  return users && users.length > 0 ? users.slice(0, 2) : null;
+}
+
 export async function logout() {
   await apiFetch("/api/v1/auth/logout", { method: "POST", auth: false }).catch(() => null);
   clearApiCache();

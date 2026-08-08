@@ -16,6 +16,9 @@ type Config struct {
 	JWTSecret         string
 	AllowedOrigins    []string
 	DefaultSpaceCode  string
+	DefaultSpaceName  string
+	DefaultUserMeName string
+	DefaultUserTaName string
 	DefaultPassword   string
 	AdminUsername     string
 	AdminPassword     string
@@ -46,6 +49,9 @@ func Load() {
 		JWTSecret:         getEnv("JWT_SECRET", "change-me-at-least-24-characters"),
 		AllowedOrigins:    strings.Split(getEnv("ALLOWED_ORIGINS", "http://localhost:3002"), ","),
 		DefaultSpaceCode:  getEnv("DEFAULT_SPACE_CODE", "our-space-2026"),
+		DefaultSpaceName:  getEnv("DEFAULT_SPACE_NAME", "我们的回忆"),
+		DefaultUserMeName: getEnv("DEFAULT_USER_ME_NAME", "我"),
+		DefaultUserTaName: getEnv("DEFAULT_USER_TA_NAME", "TA"),
 		DefaultPassword:   getEnv("DEFAULT_PASSWORD", ""),
 		AdminUsername:     getEnv("ADMIN_USERNAME", ""),
 		AdminPassword:     getEnv("ADMIN_PASSWORD", ""),

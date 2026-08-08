@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 
+	"our-memories-backend/config"
 	"our-memories-backend/models"
 	"our-memories-backend/repositories"
 	"our-memories-backend/utils"
@@ -23,6 +24,7 @@ type LoginResult struct {
 	AccessToken  string
 	RefreshToken string
 	User         models.User
+	Users        []models.User
 	Space        models.Space
 }
 
@@ -60,6 +62,10 @@ func (s *AccountService) Login(req LoginRequest) (LoginResult, error) {
 	if err != nil {
 		return LoginResult{}, err
 	}
+	users, err := s.repo.UsersForSpace(space.ID)
+	if err != nil {
+		return LoginResult{}, err
+	}
 
 	accessToken, err := utils.GenerateAccessToken(user.ID, space.ID)
 	if err != nil {
@@ -74,6 +80,7 @@ func (s *AccountService) Login(req LoginRequest) (LoginResult, error) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		User:         user,
+		Users:        users,
 		Space:        space,
 	}, nil
 }
@@ -130,6 +137,10 @@ func (s *AccountService) EnsureDefaultSpace(spaceCode string, password string, n
 	spaceID := utils.NewID()
 	userMeID := utils.NewID()
 	userTaID := utils.NewID()
+	cfg := config.Get()
+	if name == "" {
+		name = cfg.DefaultSpaceName
+	}
 	err = s.repo.CreateSpaceWithUsers(
 		repositories.SpaceRecord{
 			ID:           spaceID,
@@ -138,8 +149,8 @@ func (s *AccountService) EnsureDefaultSpace(spaceCode string, password string, n
 			Name:         name,
 		},
 		[]repositories.UserRecord{
-			{ID: userMeID, SpaceID: spaceID, Username: "me", DisplayName: "刘永伦"},
-			{ID: userTaID, SpaceID: spaceID, Username: "ta", DisplayName: "郭文盈"},
+			{ID: userMeID, SpaceID: spaceID, Username: "me", DisplayName: cfg.DefaultUserMeName},
+			{ID: userTaID, SpaceID: spaceID, Username: "ta", DisplayName: cfg.DefaultUserTaName},
 		},
 	)
 	return err == nil, err
