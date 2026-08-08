@@ -724,6 +724,8 @@ function MapFloatingControls({
   );
 }
 
+const mapCharactersVisibleStorageKey = "mapofus:map-characters-visible";
+
 // The South China Sea ten-dash line, drawn as a small standalone inset box so it
 // is always visible and never overlapped by floating cards on the main map.
 export function SouthChinaSeaInset({ compact = false }: Readonly<{ compact?: boolean }> = {}) {
@@ -797,6 +799,16 @@ export default function ChinaMap({ width = 1100, height = 860, className }: Chin
     update();
     mql.addEventListener("change", update);
     return () => mql.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const syncCharacterVisibility = () => {
+      setShowCharacters(window.localStorage.getItem(mapCharactersVisibleStorageKey) !== "false");
+    };
+
+    syncCharacterVisibility();
+    window.addEventListener("storage", syncCharacterVisibility);
+    return () => window.removeEventListener("storage", syncCharacterVisibility);
   }, []);
 
   useEffect(() => {
@@ -1023,7 +1035,13 @@ export default function ChinaMap({ width = 1100, height = 860, className }: Chin
             futureCheckinCount={count}
             showCharacters={showCharacters}
             onOpenFutureCheckins={onOpen}
-            onToggleCharacters={() => setShowCharacters((current) => !current)}
+            onToggleCharacters={() => {
+              setShowCharacters((current) => {
+                const next = !current;
+                window.localStorage.setItem(mapCharactersVisibleStorageKey, String(next));
+                return next;
+              });
+            }}
           />
         )}
       />

@@ -72,6 +72,7 @@ func Migrate() {
 	ensureColumn("time_capsules", "open_mode", "TEXT DEFAULT 'single'")
 	ensureColumn("time_capsules", "opened_by_user_ids", "TEXT DEFAULT '[]'")
 	ensureColumn("time_capsules", "revealed_at", "DATETIME")
+	repairWhisperTimestamps()
 
 	// 多用户和商业化扩展
 	ensureColumn("users", "role", "TEXT DEFAULT 'member'")
@@ -109,6 +110,56 @@ func Migrate() {
 	createIndex("idx_notifications_cleanup", "notifications", "is_read, created_at")
 
 	createIndex("idx_relationship_signals_space_expires", "relationship_signals", "space_id, expires_at")
+}
+
+func repairWhisperTimestamps() {
+	_, err := DB.Exec(`
+		UPDATE whisper_replies
+		SET created_at = COALESCE(
+			(
+				SELECT CASE
+					WHEN w.updated_at IS NOT NULL
+						AND trim(w.updated_at) <> ''
+						AND upper(trim(w.updated_at)) <> 'CURRENT_TIMESTAMP'
+					THEN w.updated_at
+					ELSE strftime('%Y-%m-%d %H:%M:%S', 'now')
+				END
+				FROM whispers AS w
+				WHERE w.id = whisper_replies.whisper_id
+			),
+			strftime('%Y-%m-%d %H:%M:%S', 'now')
+		)
+		WHERE created_at IS NULL
+			OR trim(created_at) = ''
+			OR upper(trim(created_at)) = 'CURRENT_TIMESTAMP';
+
+		UPDATE whispers
+		SET created_at = CASE
+			WHEN updated_at IS NOT NULL
+				AND trim(updated_at) <> ''
+				AND upper(trim(updated_at)) <> 'CURRENT_TIMESTAMP'
+			THEN updated_at
+			ELSE strftime('%Y-%m-%d %H:%M:%S', 'now')
+		END
+		WHERE created_at IS NULL
+			OR trim(created_at) = ''
+			OR upper(trim(created_at)) = 'CURRENT_TIMESTAMP';
+
+		UPDATE whispers
+		SET updated_at = CASE
+			WHEN created_at IS NOT NULL
+				AND trim(created_at) <> ''
+				AND upper(trim(created_at)) <> 'CURRENT_TIMESTAMP'
+			THEN created_at
+			ELSE strftime('%Y-%m-%d %H:%M:%S', 'now')
+		END
+		WHERE updated_at IS NULL
+			OR trim(updated_at) = ''
+			OR upper(trim(updated_at)) = 'CURRENT_TIMESTAMP';
+	`)
+	if err != nil {
+		log.Fatal("修复悄悄话时间失败:", err)
+	}
 }
 
 func ensureColumn(tableName string, columnName string, definition string) {

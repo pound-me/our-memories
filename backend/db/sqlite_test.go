@@ -55,6 +55,27 @@ func TestMigrateAutoMigrateCreatesCoreSchema(t *testing.T) {
 	assertIndexExists(t, "idx_memories_space_date_order")
 	assertIndexExists(t, "idx_notifications_user_read")
 	assertIndexExists(t, "idx_relationship_signals_space_expires")
+
+	if _, err := DB.Exec(`
+		INSERT INTO whispers (id, space_id, title, created_by_id, created_at, updated_at)
+		VALUES ('whisper-time-repair', 'space-1', 'repair', 'user-1', 'CURRENT_TIMESTAMP', '2026-08-08 15:42:48');
+		INSERT INTO whisper_replies (id, whisper_id, user_id, content, created_at)
+		VALUES ('reply-time-repair', 'whisper-time-repair', 'user-1', 'repair', 'CURRENT_TIMESTAMP');
+	`); err != nil {
+		t.Fatal(err)
+	}
+	repairWhisperTimestamps()
+
+	var whisperCreatedAt, replyCreatedAt string
+	if err := DB.QueryRow(`SELECT created_at FROM whispers WHERE id = 'whisper-time-repair'`).Scan(&whisperCreatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := DB.QueryRow(`SELECT created_at FROM whisper_replies WHERE id = 'reply-time-repair'`).Scan(&replyCreatedAt); err != nil {
+		t.Fatal(err)
+	}
+	if whisperCreatedAt != "2026-08-08 15:42:48" || replyCreatedAt != "2026-08-08 15:42:48" {
+		t.Fatalf("expected invalid whisper timestamps to be repaired, got whisper=%q reply=%q", whisperCreatedAt, replyCreatedAt)
+	}
 }
 
 func tableExists(t *testing.T, tableName string) bool {

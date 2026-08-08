@@ -3,6 +3,7 @@ package repositories
 import (
 	"database/sql"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 	"our-memories-backend/models"
@@ -99,13 +100,23 @@ func (r *WhisperRepository) CreatedByID(whisperID string, spaceID string) (strin
 
 func (r *WhisperRepository) Create(whisper WhisperRecord, firstReply *WhisperReplyRecord) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Omit("created_at", "updated_at").Create(&whisper).Error; err != nil {
+		now := whisperTimestamp()
+		if whisper.CreatedAt == "" {
+			whisper.CreatedAt = now
+		}
+		if whisper.UpdatedAt == "" {
+			whisper.UpdatedAt = now
+		}
+		if err := tx.Create(&whisper).Error; err != nil {
 			return err
 		}
 		if firstReply == nil {
 			return nil
 		}
-		return tx.Omit("created_at").Create(firstReply).Error
+		if firstReply.CreatedAt == "" {
+			firstReply.CreatedAt = now
+		}
+		return tx.Create(firstReply).Error
 	})
 }
 
@@ -122,14 +133,22 @@ func (r *WhisperRepository) AddReply(spaceID string, reply WhisperReplyRecord) e
 		if err != nil {
 			return err
 		}
-		if err := tx.Omit("created_at").Create(&reply).Error; err != nil {
+		now := whisperTimestamp()
+		if reply.CreatedAt == "" {
+			reply.CreatedAt = now
+		}
+		if err := tx.Create(&reply).Error; err != nil {
 			return err
 		}
 		return tx.Model(&WhisperRecord{}).
 			Where("id = ? AND space_id = ?", reply.WhisperID, spaceID).
-			Update("updated_at", gorm.Expr("CURRENT_TIMESTAMP")).
+			Update("updated_at", now).
 			Error
 	})
+}
+
+func whisperTimestamp() string {
+	return time.Now().UTC().Format("2006-01-02 15:04:05")
 }
 
 func (r *WhisperRepository) Delete(whisperID string, spaceID string) error {
