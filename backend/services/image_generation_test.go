@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -204,5 +205,91 @@ func TestCallImageGenerationKeepsLegacyResponseFormatForOtherModels(t *testing.T
 	}
 	if _, ok := payload["quality"]; ok {
 		t.Fatalf("non-gpt-image request should not get gpt-image quality params, got %#v", payload)
+	}
+}
+
+func TestCallSiliconFlowImageGenerationUsesProviderSchema(t *testing.T) {
+	var payload map[string]any
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/images/generations":
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			_, _ = fmt.Fprintf(w, `{"images":[{"url":%q}]}`, server.URL+"/generated.png")
+		case "/generated.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("image"))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	generator := NewImageGenerator(ImageGenerationSettings{})
+	dataURL, err := generator.callImageGeneration(context.Background(), ImageGenerationNode{
+		BaseURL: server.URL + "/v1",
+		APIKey:  "secret",
+		Model:   "Kwai-Kolors/Kolors",
+	}, "draw a traveler")
+	if err != nil {
+		t.Fatalf("callImageGeneration failed: %v", err)
+	}
+	if !strings.HasPrefix(dataURL, "data:image/png;base64,") {
+		t.Fatalf("expected downloaded data URL, got %q", dataURL)
+	}
+
+	for key, want := range map[string]any{
+		"model":               "Kwai-Kolors/Kolors",
+		"image_size":          "1024x1024",
+		"batch_size":          float64(1),
+		"num_inference_steps": float64(20),
+		"guidance_scale":      float64(7.5),
+	} {
+		if payload[key] != want {
+			t.Fatalf("expected %s=%#v, got %#v in %#v", key, want, payload[key], payload)
+		}
+	}
+	for _, key := range []string{"size", "n", "response_format", "quality"} {
+		if _, ok := payload[key]; ok {
+			t.Fatalf("siliconflow request should not include %s, got %#v", key, payload)
+		}
+	}
+}
+
+func TestCallSiliconFlowImageEditUsesImageField(t *testing.T) {
+	var payload map[string]any
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/images/generations":
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			_, _ = fmt.Fprintf(w, `{"images":[{"url":%q}]}`, server.URL+"/edited.png")
+		case "/edited.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("edited image"))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	generator := NewImageGenerator(ImageGenerationSettings{})
+	dataURL, err := generator.callImageEdit(context.Background(), ImageGenerationNode{
+		BaseURL: server.URL + "/v1",
+		APIKey:  "secret",
+		Model:   "Kwai-Kolors/Kolors",
+	}, "edit a traveler", "data:image/png;base64,aW1hZ2U=")
+	if err != nil {
+		t.Fatalf("callImageEdit failed: %v", err)
+	}
+	if !strings.HasPrefix(dataURL, "data:image/png;base64,") {
+		t.Fatalf("expected downloaded data URL, got %q", dataURL)
+	}
+	if payload["image"] != "data:image/png;base64,aW1hZ2U=" {
+		t.Fatalf("expected reference image field, got %#v", payload)
 	}
 }

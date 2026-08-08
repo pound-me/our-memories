@@ -424,6 +424,10 @@ func normalizeNegativePrompt(value string) string {
 }
 
 func (g *ImageGenerator) callImageGeneration(ctx context.Context, node ImageGenerationNode, prompt string) (string, error) {
+	if isSiliconFlowNode(node) {
+		return g.callSiliconFlowImageGeneration(ctx, node, prompt, "")
+	}
+
 	payload := map[string]any{
 		"model":  node.Model,
 		"prompt": prompt,
@@ -451,6 +455,10 @@ func (g *ImageGenerator) callImageGeneration(ctx context.Context, node ImageGene
 }
 
 func (g *ImageGenerator) callImageEdit(ctx context.Context, node ImageGenerationNode, prompt string, referenceImage string) (string, error) {
+	if isSiliconFlowNode(node) {
+		return g.callSiliconFlowImageGeneration(ctx, node, prompt, referenceImage)
+	}
+
 	imageBytes, mimeType, err := decodeDataURL(referenceImage)
 	if err != nil {
 		return "", err
@@ -493,6 +501,49 @@ func (g *ImageGenerator) callImageEdit(ctx context.Context, node ImageGeneration
 	return g.decodeImageResponse(req)
 }
 
+func (g *ImageGenerator) callSiliconFlowImageGeneration(
+	ctx context.Context,
+	node ImageGenerationNode,
+	prompt string,
+	referenceImage string,
+) (string, error) {
+	payload := map[string]any{
+		"model":               node.Model,
+		"prompt":              prompt,
+		"image_size":          "1024x1024",
+		"batch_size":          1,
+		"num_inference_steps": 20,
+		"guidance_scale":      7.5,
+	}
+	if referenceImage != "" {
+		payload["image"] = referenceImage
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, node.BaseURL+"/images/generations", bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+node.APIKey)
+	return g.decodeImageResponse(req)
+}
+
+func isSiliconFlowNode(node ImageGenerationNode) bool {
+	if parsed, err := url.Parse(strings.TrimSpace(node.BaseURL)); err == nil {
+		host := strings.ToLower(parsed.Hostname())
+		if host == "siliconflow.cn" || strings.HasSuffix(host, ".siliconflow.cn") {
+			return true
+		}
+	}
+
+	model := strings.ToLower(strings.TrimSpace(node.Model))
+	return strings.HasPrefix(model, "kwai-kolors/") || strings.HasPrefix(model, "qwen/qwen-image")
+}
+
 func isGPTImageModel(model string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-image")
 }
@@ -514,18 +565,21 @@ func (g *ImageGenerator) decodeImageResponse(req *http.Request) (string, error) 
 			B64JSON string `json:"b64_json"`
 			URL     string `json:"url"`
 		} `json:"data"`
+		Images []struct {
+			URL string `json:"url"`
+		} `json:"images"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
-	if len(result.Data) == 0 {
-		return "", errors.New("empty image response")
-	}
-	if result.Data[0].B64JSON != "" {
+	if len(result.Data) > 0 && result.Data[0].B64JSON != "" {
 		return "data:image/png;base64," + result.Data[0].B64JSON, nil
 	}
-	if result.Data[0].URL != "" {
+	if len(result.Data) > 0 && result.Data[0].URL != "" {
 		return g.downloadImage(req.Context(), result.Data[0].URL)
+	}
+	if len(result.Images) > 0 && result.Images[0].URL != "" {
+		return g.downloadImage(req.Context(), result.Images[0].URL)
 	}
 	return "", errors.New("image response has no image payload")
 }

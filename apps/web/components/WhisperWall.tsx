@@ -21,7 +21,7 @@ type WhisperReply = {
   userId: string;
   content: string;
   voiceUrl?: string;
-  createdAt: string;
+  createdAt?: string;
 };
 
 type Whisper = {
@@ -31,6 +31,40 @@ type Whisper = {
   messages?: WhisperReply[];
   updatedAt: string;
 };
+
+const whisperDateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+function formatWhisperDate(value?: string) {
+  const raw = value?.trim();
+  if (!raw) return "时间未记录";
+
+  const sqliteMatch = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/,
+  );
+  const timestamp = sqliteMatch
+    ? Date.UTC(
+        Number(sqliteMatch[1]),
+        Number(sqliteMatch[2]) - 1,
+        Number(sqliteMatch[3]),
+        Number(sqliteMatch[4]),
+        Number(sqliteMatch[5]),
+        Number(sqliteMatch[6]),
+        Number((sqliteMatch[7] ?? "0").padEnd(3, "0")),
+      )
+    : Date.parse(raw);
+
+  if (!Number.isFinite(timestamp)) return "时间未记录";
+  return whisperDateFormatter.format(new Date(timestamp));
+}
 
 export function WhisperWall() {
   const [open, setOpen] = useState(false);
@@ -202,7 +236,9 @@ export function WhisperWall() {
                     <div className={msg.content ? "mt-2" : ""}>
                     <VoicePlayer src={msg.voiceUrl} label="悄悄话语音" compact />
                     </div>
-                    <span className="text-xs text-gray-400">{new Date(msg.createdAt).toLocaleString("zh-CN")}</span>
+                    <time className="text-xs text-gray-400" dateTime={msg.createdAt}>
+                      {formatWhisperDate(msg.createdAt)}
+                    </time>
                   </div>
                 ))}
                 {typingWhispers[w.id] && (
