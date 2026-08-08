@@ -29,23 +29,26 @@ func TestAvatarSpritePromptIncludesGhibliLocationAndGuardrails(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"Studio Ghibli-inspired hand-drawn traveler image",
+		"Studio Ghibli-inspired hand-drawn full-body traveler character",
 		"watercolor-and-gouache texture",
 		"soft cel-animation linework",
 		"do not copy any existing Studio Ghibli film",
 		"Local character details",
 		"杭州, 浙江",
-		"local landmark or atmosphere: 西湖 / 雷峰塔",
-		"one polished square illustration",
+		"tiny accessory inspiration only: 西湖 / 雷峰塔",
+		"Express this place only through subtle clothing colors",
+		"Do not add architecture, streets, landmarks, scenery",
+		"one isolated full-body character",
 		"lively walking pose",
 		"complete traveler mid-step",
 		"If the prompt asks for two people or a couple",
 		"do not split them into panels",
 		"Do not create a sprite sheet",
-		"do not use transparent background",
-		"high-resolution moving layer",
+		"perfectly uniform warm off-white background",
+		"small moving character directly on top of a geographic map",
+		"not a square picture or scene",
 		"Negative prompt:",
-		"chroma key",
+		"detailed background",
 		"frame boundary slicing",
 		"hard pixel edges",
 		"copied Studio Ghibli scene",
@@ -291,5 +294,84 @@ func TestCallSiliconFlowImageEditUsesImageField(t *testing.T) {
 	}
 	if payload["image"] != "data:image/png;base64,aW1hZ2U=" {
 		t.Fatalf("expected reference image field, got %#v", payload)
+	}
+}
+
+func TestCallSiliconFlowQwenImageUsesTextToImageSchema(t *testing.T) {
+	var payload map[string]any
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/images/generations":
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			_, _ = fmt.Fprintf(w, `{"images":[{"url":%q}]}`, server.URL+"/qwen.png")
+		case "/qwen.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("qwen image"))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	generator := NewImageGenerator(ImageGenerationSettings{})
+	if _, err := generator.callImageGeneration(context.Background(), ImageGenerationNode{
+		BaseURL: server.URL + "/v1",
+		APIKey:  "secret",
+		Model:   "Qwen/Qwen-Image",
+	}, "draw one traveler"); err != nil {
+		t.Fatalf("callImageGeneration failed: %v", err)
+	}
+
+	if payload["model"] != "Qwen/Qwen-Image" || payload["image_size"] != "1024x1024" {
+		t.Fatalf("unexpected Qwen text-to-image payload: %#v", payload)
+	}
+	for _, key := range []string{"batch_size", "guidance_scale", "image"} {
+		if _, ok := payload[key]; ok {
+			t.Fatalf("Qwen text-to-image request should not include %s, got %#v", key, payload)
+		}
+	}
+}
+
+func TestCallSiliconFlowQwenImageUsesEditModelForReference(t *testing.T) {
+	var payload map[string]any
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/images/generations":
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			_, _ = fmt.Fprintf(w, `{"images":[{"url":%q}]}`, server.URL+"/qwen-edited.png")
+		case "/qwen-edited.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write([]byte("qwen edited image"))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	generator := NewImageGenerator(ImageGenerationSettings{})
+	if _, err := generator.callImageEdit(context.Background(), ImageGenerationNode{
+		BaseURL: server.URL + "/v1",
+		APIKey:  "secret",
+		Model:   "Qwen/Qwen-Image",
+	}, "keep the person", "data:image/png;base64,aW1hZ2U="); err != nil {
+		t.Fatalf("callImageEdit failed: %v", err)
+	}
+
+	if payload["model"] != "Qwen/Qwen-Image-Edit-2509" {
+		t.Fatalf("expected Qwen edit model, got %#v", payload)
+	}
+	if payload["image"] != "data:image/png;base64,aW1hZ2U=" || payload["guidance_scale"] != float64(4) {
+		t.Fatalf("unexpected Qwen edit payload: %#v", payload)
+	}
+	for _, key := range []string{"image_size", "batch_size"} {
+		if _, ok := payload[key]; ok {
+			t.Fatalf("Qwen edit request should not include %s, got %#v", key, payload)
+		}
 	}
 }

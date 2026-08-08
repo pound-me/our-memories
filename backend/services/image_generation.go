@@ -25,20 +25,20 @@ const (
 	maskedAPIKey                 = "********"
 )
 
-const defaultAvatarPromptTemplate = `Create one premium high-resolution Studio Ghibli-inspired hand-drawn traveler image for a couple memory map.
+const defaultAvatarPromptTemplate = `Create one premium high-resolution Studio Ghibli-inspired hand-drawn full-body traveler character for a couple memory map.
 {reference}
 Subject: {gender}, cute human traveler in a lively walking pose, original design, {prompt}.
 Location inspiration: {location}
-Style direction: Studio Ghibli-inspired warm hand-drawn animation look. Use rich watercolor-and-gouache texture, soft cel-animation linework, gentle natural daylight, airy backgrounds, rounded friendly proportions, earthy clothing colors, subtle wind-swept details, and a calm countryside-adventure mood. Keep it original: do not copy any existing Studio Ghibli film, character, mascot, logo, poster, shot composition, or exact costume.
-Local character details: incorporate understated local features from the selected place: architecture silhouettes, climate, plants, street textures, regional color accents, travel-map icons, and small background props. Prefer everyday travel clothing with local color accents rather than stereotyped ceremonial outfits.
+Style direction: Studio Ghibli-inspired warm hand-drawn animation look. Use rich watercolor-and-gouache texture, soft cel-animation linework, gentle natural daylight, an airy color palette, rounded friendly proportions, earthy clothing colors, subtle wind-swept details, and a calm countryside-adventure mood. Keep it original: do not copy any existing Studio Ghibli film, character, mascot, logo, poster, shot composition, or exact costume.
+Local character details: express the selected place only through understated clothing colors, a tiny handheld accessory, a small bag charm, or subtle fabric details. Do not build a surrounding city, street, landscape, landmark scene, postcard, or map panel. Prefer everyday travel clothing with local color accents rather than stereotyped ceremonial outfits.
 Pose: show the complete traveler mid-step with one foot forward, natural arm swing, balanced body, and readable walking action. Keep the pose energetic but stable for a moving map illustration.
-Output format: one polished square illustration, not a cutout. The traveler should be the clear focal point and occupy about 55-70% of frame height. If the prompt asks for two people or a couple, keep both complete full bodies together inside the same canvas; do not split them into panels, do not place either person across a frame boundary, and do not crop heads, hands, feet, hair, clothing, or accessories. Do not create a sprite sheet, animation strip, multiple poses, panels, borders, or repeated frames.
-Map integration: include a soft warm paper-map or travel-journal background with subtle paths, rivers, location sketches, postcards, or foliage. The image will be displayed as a high-resolution moving layer on top of the map, so preserve beautiful details while keeping the silhouette readable at 96-180 px wide.
-Background: do not use transparent background, chroma key, green screen, flat color backdrop, sticker cutout, or isolated product-style background. Use a finished illustrated background that blends with a romantic memory map.
+Output format: one isolated full-body character centered in a square canvas with generous empty space around the silhouette. The traveler should occupy about 60-72% of frame height. If the prompt asks for two people or a couple, keep both complete full bodies close together inside the same canvas; do not split them into panels, do not place either person across a frame boundary, and do not crop heads, hands, feet, hair, clothing, or accessories. Do not create a sprite sheet, animation strip, multiple poses, panels, borders, cards, or repeated frames.
+Map integration: this image will be displayed as a small moving character directly on top of a geographic map at about 48-96 px tall. Prioritize a clean readable human silhouette and simple character details. Do not draw a second map, travel journal, street, room, landscape, building, frame, rounded card, poster, or scenic illustration behind the character.
+Background: use a perfectly uniform warm off-white background (#f7f3e8) with no texture, shadow, gradient, horizon, ground, props, scenery, border, or vignette. If true transparent alpha is supported, transparent background is preferred. The output must look like a standalone little character, not a square picture or scene.
 Quality constraints: the character must clearly look like a cute human with natural proportions. No text, watermark, logo, cropped limbs, extra characters, animal features, monster features, distorted face, broken hands, squashed body, stretched body, plastic toy look, hard pixel edges, low-resolution blur, compression artifacts, or mixed art styles.
 Negative prompt: {negative}`
 
-const defaultAvatarNegativePrompt = "transparent background, chroma key, green screen, flat color backdrop, sticker, cutout, isolated product image, sprite sheet, animation strip, multiple frames, multiple poses, split composition, separated panels, frame boundary slicing, cropped partner, cropped head, cropped hands, cropped feet, pixel art, hard pixel edges, 16-bit JRPG, 3D render, plastic toy, vector icon, photorealistic, low quality, malformed human, squashed body, stretched body, monster, animal ears, extra limbs, broken hands, cropped body, exact famous character, copyrighted character, exact Studio Ghibli character, copied Studio Ghibli scene, copied film still, trademark logo, text, watermark, logo, rain overlay, weather effects"
+const defaultAvatarNegativePrompt = "detailed background, scenic background, city street, buildings, landscape, room interior, second map, postcard, travel journal, square picture, rounded card, frame, border, ground shadow, gradient background, textured background, props surrounding the character, sprite sheet, animation strip, multiple frames, multiple poses, split composition, separated panels, frame boundary slicing, cropped partner, cropped head, cropped hands, cropped feet, pixel art, hard pixel edges, 16-bit JRPG, 3D render, plastic toy, vector icon, photorealistic, low quality, malformed human, squashed body, stretched body, monster, animal ears, extra limbs, broken hands, cropped body, exact famous character, copyrighted character, exact Studio Ghibli character, copied Studio Ghibli scene, copied film still, trademark logo, text, watermark, logo, rain overlay, weather effects"
 
 // Old built-in templates are kept only to upgrade saved admin settings.
 const previousStorybookAvatarPromptTemplate = `Create one premium high-resolution hand-drawn traveler image for a couple memory map.
@@ -367,12 +367,12 @@ func locationInspiration(spec AvatarSpriteSpec) string {
 		parts = append(parts, provinceName)
 	}
 	if landmark != "" {
-		parts = append(parts, "local landmark or atmosphere: "+landmark)
+		parts = append(parts, "tiny accessory inspiration only: "+landmark)
 	}
 	if len(parts) == 0 {
-		return "use subtle local travel-map atmosphere based on the user's selected city when available, without adding text labels"
+		return "when a city is available, express it only through subtle clothing colors or one tiny travel accessory, without adding scenery or text labels"
 	}
-	return strings.Join(parts, "; ") + ". Add subtle local architecture, climate, plants, colors, regional textures, street details, and travel-map motifs inspired by this place, without text labels or stereotyped costumes."
+	return strings.Join(parts, "; ") + ". Express this place only through subtle clothing colors, fabric details, a tiny bag charm, or one small handheld travel accessory. Do not add architecture, streets, landmarks, scenery, a second map, text labels, or stereotyped costumes."
 }
 
 func trimPromptPart(value string, maxLength int) string {
@@ -507,13 +507,27 @@ func (g *ImageGenerator) callSiliconFlowImageGeneration(
 	prompt string,
 	referenceImage string,
 ) (string, error) {
+	model := strings.TrimSpace(node.Model)
+	isKolors := strings.HasPrefix(strings.ToLower(model), "kwai-kolors/")
+	isQwenImageEdit := referenceImage != "" && strings.EqualFold(model, "Qwen/Qwen-Image")
+	if isQwenImageEdit {
+		model = "Qwen/Qwen-Image-Edit-2509"
+	}
+
 	payload := map[string]any{
-		"model":               node.Model,
+		"model":               model,
 		"prompt":              prompt,
-		"image_size":          "1024x1024",
-		"batch_size":          1,
 		"num_inference_steps": 20,
-		"guidance_scale":      7.5,
+	}
+	if isKolors {
+		payload["image_size"] = "1024x1024"
+		payload["batch_size"] = 1
+		payload["guidance_scale"] = 7.5
+	} else if !isQwenImageEdit {
+		payload["image_size"] = "1024x1024"
+	}
+	if isQwenImageEdit {
+		payload["guidance_scale"] = 4
 	}
 	if referenceImage != "" {
 		payload["image"] = referenceImage

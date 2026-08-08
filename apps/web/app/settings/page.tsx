@@ -8,6 +8,7 @@ import {
   ImageIcon,
   MapPin,
   RefreshCw,
+  RotateCcw,
   Save,
   Sparkles,
   Upload,
@@ -46,6 +47,21 @@ const genderOptions = [
   { value: "male", label: "男生" },
   { value: "neutral", label: "不限定" },
 ] satisfies Array<{ value: PartnerGender; label: string }>;
+
+const avatarPromptPresets = [
+  {
+    label: "单人全身小人",
+    value: "单个完整全身的可爱旅行小人，人物居中，头发、双手和双脚完整，轻松行走姿势，简洁日常旅行服装，纯净暖白色背景，周围留白，不要街景，不要建筑，不要边框，不要文字，不要其他人物",
+  },
+  {
+    label: "Q版旅行小人",
+    value: "单个Q版全身旅行小人，头身比例可爱，表情自然，背小包，迈步向前，完整显示头发、手和脚，纯净浅色背景，不要复杂场景，不要卡片边框，不要文字",
+  },
+  {
+    label: "温暖手绘小人",
+    value: "单个温暖手绘动画风全身小人，柔和线条和淡彩质感，简单旅行穿搭，人物清晰居中，完整身体，轻微走路动作，纯色暖白背景，不要风景画，不要建筑，不要多人",
+  },
+] as const;
 
 const backupKeyAllowed = (key: string) =>
   key.startsWith("mapofus:") &&
@@ -192,10 +208,11 @@ export default function SettingsPage() {
     gender: "neutral",
   });
   const [saving, setSaving] = useState(false);
-  const [avatarPrompt, setAvatarPrompt] = useState("");
+  const [avatarPrompt, setAvatarPrompt] = useState<string>(avatarPromptPresets[0].value);
   const [avatarReference, setAvatarReference] = useState("");
   const [avatarReferenceName, setAvatarReferenceName] = useState("");
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [restoringAvatar, setRestoringAvatar] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -213,7 +230,7 @@ export default function SettingsPage() {
         ...profiles[memberKey],
         name: sessionDisplayName(nextSession),
       });
-      setAvatarPrompt(profiles[memberKey]?.avatarPrompt ?? "");
+      setAvatarPrompt(profiles[memberKey]?.avatarPrompt || avatarPromptPresets[0].value);
     }, 0);
 
     const syncSession = () => setSession(readSession());
@@ -317,6 +334,37 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRestoreDefaultAvatar = async () => {
+    if (!profile.avatarSprite) {
+      toast("当前已经是默认小人", "info");
+      return;
+    }
+
+    setRestoringAvatar(true);
+    const nextProfile: PartnerProfile = {
+      name: displayName,
+      gender: profile.gender,
+      cityId: profile.cityId,
+      avatarPrompt: profile.avatarPrompt,
+      avatarSpriteHistory: profile.avatarSpriteHistory,
+    };
+    const nextSettings = settingsWithProfile(settings, memberKey, nextProfile, displayName);
+    const normalizedSettings = normalizeAppSettings(nextSettings);
+
+    try {
+      await writeAppSettings(nextSettings);
+      toast("已恢复为原来的默认小人", "success");
+    } catch {
+      toast("本机已恢复默认小人，但同步到服务器失败", "warning");
+    } finally {
+      setSettings(normalizedSettings);
+      setProfile(nextProfile);
+      setAvatarReference("");
+      setAvatarReferenceName("");
+      setRestoringAvatar(false);
+    }
+  };
+
   const handleBackup = () => {
     const payload: BackupPayload = {
       app: "our-memories",
@@ -363,6 +411,7 @@ export default function SettingsPage() {
         ...restoredProfiles[memberKey],
         name: displayName,
       });
+      setAvatarPrompt(restoredProfiles[memberKey]?.avatarPrompt || avatarPromptPresets[0].value);
       window.dispatchEvent(new CustomEvent(appSettingsUpdatedEvent, { detail: restoredSettings }));
       toast("恢复完成", "success");
     } catch {
@@ -438,7 +487,7 @@ export default function SettingsPage() {
                 生成地图角色
               </span>
             }
-            subtitle="会自动带上当前性别和地点，生成带地方特色的吉卜力工作室画风人物，并上传到地图角色。"
+            subtitle="生成单个全身旅行小人并上传到地图；新图片会尽量使用纯净背景，也可以随时恢复原来的默认小人。"
           />
           <div className="mt-5 grid gap-4 lg:grid-cols-[140px_minmax(0,1fr)]">
             <div className="flex min-h-36 items-center justify-center rounded-[8px] border border-dim/80 bg-white/58">
@@ -450,7 +499,10 @@ export default function SettingsPage() {
                   alt="当前地图角色"
                 />
               ) : (
-                <UserRound className="h-10 w-10 text-ink/32" />
+                <div className="grid justify-items-center gap-2 text-ink/42">
+                  <UserRound className="h-10 w-10" />
+                  <span className="text-xs font-semibold">默认小人</span>
+                </div>
               )}
             </div>
             <div className="grid gap-3">
@@ -460,21 +512,45 @@ export default function SettingsPage() {
                   className="min-h-24 w-full resize-y rounded-[7px] border border-dim/80 bg-cream/76 px-3 py-2 text-sm text-ink outline-none transition focus:border-sky focus:bg-white"
                   value={avatarPrompt}
                   maxLength={600}
-                  placeholder="可选，例如：短发、暖色围巾、自然光下走过手绘旅行地图"
+                  placeholder={avatarPromptPresets[0].value}
                   onChange={(event) => setAvatarPrompt(event.target.value)}
                 />
               </label>
+              <div className="grid gap-1.5">
+                <span className="text-xs font-semibold text-ink/52">快捷提示词（点击即可使用）</span>
+                <div className="flex flex-wrap gap-2">
+                  {avatarPromptPresets.map((preset) => (
+                    <button
+                      key={preset.label}
+                      className="rounded-full border border-dim/82 bg-cream/72 px-3 py-1.5 text-xs font-semibold text-ink/68 transition hover:border-sky hover:bg-white hover:text-sky disabled:opacity-45"
+                      type="button"
+                      onClick={() => setAvatarPrompt(preset.value)}
+                      disabled={generatingAvatar || restoringAvatar}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" onClick={() => avatarInputRef.current?.click()} disabled={generatingAvatar}>
+                <Button variant="secondary" onClick={() => avatarInputRef.current?.click()} disabled={generatingAvatar || restoringAvatar}>
                   <ImageIcon className="h-4 w-4" />
                   参考照片
                 </Button>
                 {avatarReferenceName && (
                   <span className="max-w-full truncate text-sm text-ink/58">{avatarReferenceName}</span>
                 )}
-                <Button onClick={handleGenerateAvatar} disabled={generatingAvatar}>
+                <Button onClick={handleGenerateAvatar} disabled={generatingAvatar || restoringAvatar}>
                   {generatingAvatar ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {generatingAvatar ? "生成中" : "生成并上传"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleRestoreDefaultAvatar}
+                  disabled={!profile.avatarSprite || generatingAvatar || restoringAvatar}
+                >
+                  {restoringAvatar ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  {restoringAvatar ? "恢复中" : "恢复默认小人"}
                 </Button>
               </div>
             </div>
