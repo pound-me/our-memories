@@ -13,11 +13,8 @@ import {
   MessageCircle,
   MoreHorizontal,
   Settings,
-  Star,
 } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
-
-const githubUrl = "https://github.com/qq570850096/our-memories";
 
 export type MemoryNavKey = "map" | "memories" | "favorites" | "anniversaries" | "capsule" | "whispers" | "settings";
 
@@ -180,21 +177,6 @@ export function MemorySidebar({ active }: Readonly<{ active: MemoryNavKey }>) {
           一期为私密双人空间，后续可用开通码扩展给其它情侣。
         </p>
 
-        <div className="mt-3 border-t border-dim/54 pt-3">
-          <p className="text-[11px] font-semibold text-ink/48">开源项目</p>
-          <a
-            className="mt-1.5 flex items-center justify-center gap-1.5 rounded-[7px] border border-sakura bg-sakura/40 px-3 py-2 text-xs font-semibold text-bloom transition hover:bg-sakura/70"
-            href={githubUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Star className="h-3.5 w-3.5" />
-            GitHub
-          </a>
-          <p className="mt-1.5 select-text text-[11px] leading-5 text-ink/55">
-            github.com/qq570850096/our-memories
-          </p>
-        </div>
       </div>
     </aside>
   );
