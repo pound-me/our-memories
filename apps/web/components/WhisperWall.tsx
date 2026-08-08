@@ -28,7 +28,7 @@ type Whisper = {
   id: string;
   title: string;
   createdById: string;
-  messages: WhisperReply[];
+  messages?: WhisperReply[];
   updatedAt: string;
 };
 
@@ -196,7 +196,7 @@ export function WhisperWall() {
             >
               <h3 className="font-semibold text-lg mb-3">{w.title}</h3>
               <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
-                {w.messages.map((msg) => (
+                {(w.messages ?? []).map((msg) => (
                   <div key={msg.id} className="rounded bg-gray-50 p-2 text-sm">
                     {msg.content && <p>{msg.content}</p>}
                     <div className={msg.content ? "mt-2" : ""}>
