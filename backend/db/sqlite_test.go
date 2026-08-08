@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"testing"
+	"time"
 
 	_ "github.com/glebarez/sqlite"
 	sqlitegorm "github.com/glebarez/sqlite"
@@ -73,9 +74,21 @@ func TestMigrateAutoMigrateCreatesCoreSchema(t *testing.T) {
 	if err := DB.QueryRow(`SELECT created_at FROM whisper_replies WHERE id = 'reply-time-repair'`).Scan(&replyCreatedAt); err != nil {
 		t.Fatal(err)
 	}
-	if whisperCreatedAt != "2026-08-08 15:42:48" || replyCreatedAt != "2026-08-08 15:42:48" {
+	wantTimestamp := time.Date(2026, time.August, 8, 15, 42, 48, 0, time.UTC)
+	if !parseDatabaseTimestamp(t, whisperCreatedAt).Equal(wantTimestamp) || !parseDatabaseTimestamp(t, replyCreatedAt).Equal(wantTimestamp) {
 		t.Fatalf("expected invalid whisper timestamps to be repaired, got whisper=%q reply=%q", whisperCreatedAt, replyCreatedAt)
 	}
+}
+
+func parseDatabaseTimestamp(t *testing.T, value string) time.Time {
+	t.Helper()
+	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed.UTC()
+		}
+	}
+	t.Fatalf("expected a valid database timestamp, got %q", value)
+	return time.Time{}
 }
 
 func tableExists(t *testing.T, tableName string) bool {

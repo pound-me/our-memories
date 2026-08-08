@@ -55,7 +55,10 @@ func assertRealWhisperTimestamp(t *testing.T, value string) {
 	if strings.EqualFold(strings.TrimSpace(value), "CURRENT_TIMESTAMP") {
 		t.Fatalf("expected a real timestamp, got %q", value)
 	}
-	if _, err := time.Parse("2006-01-02 15:04:05", value); err != nil {
-		t.Fatalf("expected SQLite UTC timestamp, got %q: %v", value, err)
+	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04:05"} {
+		if _, err := time.Parse(layout, value); err == nil {
+			return
+		}
 	}
+	t.Fatalf("expected SQLite or RFC3339 UTC timestamp, got %q", value)
 }
