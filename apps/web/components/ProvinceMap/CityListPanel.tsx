@@ -80,6 +80,10 @@ export function CityListPanel({
         <button
           className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.85rem)] z-[75] flex min-h-12 items-center gap-2 rounded-[8px] border border-ink/24 bg-cream/92 px-3.5 text-sm font-semibold text-ink shadow-[0_8px_24px_rgba(90,102,112,0.10)] backdrop-blur transition active:scale-[0.98] lg:hidden"
           type="button"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            setMobileOpen(true);
+          }}
           onClick={(event) => {
             event.stopPropagation();
             setMobileOpen(true);
