@@ -129,11 +129,11 @@ export default function ProvinceMap({ province, width = 1120, height = 760 }: Pr
       const scale = Math.max(cameraRef.current.scale, 1.62);
       setCamera({
         scale,
-        x: width / 2 - point.x * scale - 150,
+        x: width / 2 - point.x * scale - (isMobile ? 0 : 150),
         y: height / 2 - point.y * scale + 12,
       });
     },
-    [cameraRef, height, mapGeometry.cities, setCamera, width],
+    [cameraRef, height, isMobile, mapGeometry.cities, setCamera, width],
   );
 
   const {

@@ -152,12 +152,21 @@ func whisperTimestamp() string {
 }
 
 func (r *WhisperRepository) Delete(whisperID string, spaceID string) error {
-	result := r.db.Where("id = ? AND space_id = ?", whisperID, spaceID).Delete(&WhisperRecord{})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return ErrWhisperNotFound
-	}
-	return nil
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var whisper WhisperRecord
+		err := tx.Select("id").
+			Where("id = ? AND space_id = ?", whisperID, spaceID).
+			First(&whisper).
+			Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrWhisperNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if err := tx.Where("whisper_id = ?", whisperID).Delete(&WhisperReplyRecord{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ? AND space_id = ?", whisperID, spaceID).Delete(&WhisperRecord{}).Error
+	})
 }

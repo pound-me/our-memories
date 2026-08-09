@@ -48,6 +48,20 @@ func TestWhisperRepositoryWritesRealTimestamps(t *testing.T) {
 	for _, reply := range whispers[0].Messages {
 		assertRealWhisperTimestamp(t, reply.CreatedAt)
 	}
+
+	if err := repo.Delete("whisper-1", "space-1"); err != nil {
+		t.Fatal(err)
+	}
+	var whisperCount, replyCount int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM whispers WHERE id = 'whisper-1'`).Scan(&whisperCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM whisper_replies WHERE whisper_id = 'whisper-1'`).Scan(&replyCount); err != nil {
+		t.Fatal(err)
+	}
+	if whisperCount != 0 || replyCount != 0 {
+		t.Fatalf("expected whisper and replies to be deleted, got whispers=%d replies=%d", whisperCount, replyCount)
+	}
 }
 
 func assertRealWhisperTimestamp(t *testing.T, value string) {
