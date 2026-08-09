@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { List, X } from "lucide-react";
 import type { City } from "@/data/cities";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+
+const subscribeToClientReady = () => () => {};
+const clientReadySnapshot = () => true;
+const serverReadySnapshot = () => false;
+
+function useClientReady() {
+  return useSyncExternalStore(subscribeToClientReady, clientReadySnapshot, serverReadySnapshot);
+}
 
 type CityListPanelProps = {
   provinceName: string;
@@ -23,6 +32,7 @@ export function CityListPanel({
   onSelectCity,
 }: Readonly<CityListPanelProps>) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const clientReady = useClientReady();
 
   const cityRows = (closeAfterSelect = false) => cities.map((city) => {
     const lit = litCityIds.has(city.id);
@@ -76,24 +86,27 @@ export function CityListPanel({
         </div>
       </aside>
 
-      {!mobileOpen && (
-        <button
-          className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.85rem)] z-[75] flex min-h-12 items-center gap-2 rounded-[8px] border border-ink/24 bg-cream/92 px-3.5 text-sm font-semibold text-ink shadow-[0_8px_24px_rgba(90,102,112,0.10)] backdrop-blur transition active:scale-[0.98] lg:hidden"
-          type="button"
-          onPointerDown={(event) => {
-            event.stopPropagation();
-            setMobileOpen(true);
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            setMobileOpen(true);
-          }}
-          aria-label={`打开${provinceName}城市列表，共${cityCount}个城市`}
-        >
-          <List className="h-5 w-5 text-sky" />
-          <span>城市</span>
-          <span className="rounded-full bg-mist/52 px-2 py-0.5 text-xs text-ink/58">{cityCount}</span>
-        </button>
+      {clientReady && createPortal(
+        !mobileOpen ? (
+          <button
+            className="fixed right-4 top-[calc(env(safe-area-inset-top)+0.85rem)] z-[75] flex min-h-12 items-center gap-2 rounded-[8px] border border-ink/24 bg-cream/92 px-3.5 text-sm font-semibold text-ink shadow-[0_8px_24px_rgba(90,102,112,0.10)] backdrop-blur transition active:scale-[0.98] lg:hidden"
+            type="button"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              setMobileOpen(true);
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              setMobileOpen(true);
+            }}
+            aria-label={`打开${provinceName}城市列表，共${cityCount}个城市`}
+          >
+            <List className="h-5 w-5 text-sky" />
+            <span>城市</span>
+            <span className="rounded-full bg-mist/52 px-2 py-0.5 text-xs text-ink/58">{cityCount}</span>
+          </button>
+        ) : null,
+        document.body,
       )}
 
       <BottomSheet
